@@ -10,6 +10,15 @@ import (
 
 type adminUserHandler struct{ users *auth.UserStore }
 
+func (h adminUserHandler) list(w http.ResponseWriter, r *http.Request) {
+	users, err := h.users.List(r.Context())
+	if err != nil {
+		writeJSON(w, 500, map[string]string{"message": "Could not load users."})
+		return
+	}
+	writeJSON(w, 200, map[string]any{"data": users})
+}
+
 func (h adminUserHandler) updateRole(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Role auth.Role `json:"role"`

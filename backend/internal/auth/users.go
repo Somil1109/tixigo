@@ -44,5 +44,22 @@ func (s *UserStore) UpdateRole(ctx context.Context, id string, role Role) (User,
 	return u, err
 }
 
+func (s *UserStore) List(ctx context.Context) ([]User, error) {
+	rows, err := s.pool.Query(ctx, `SELECT id::text,email,full_name,role,email_verified_at FROM users ORDER BY created_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	users := []User{}
+	for rows.Next() {
+		var u User
+		if err := rows.Scan(&u.ID, &u.Email, &u.FullName, &u.Role, &u.EmailVerifiedAt); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
+}
+
 var ErrInvalidCredentials = pgx.ErrNoRows
 var ErrInvalidAccountToken = errors.New("invalid or expired account token")

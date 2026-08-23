@@ -49,7 +49,9 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, tokens *auth.TokenManager,
 		r.Route("/admin", func(r chi.Router) {
 			r.Use(requireAuth(tokens))
 			r.Use(requireRole(auth.RoleAdmin))
-			r.Patch("/users/{userID}/role", adminUserHandler{auth.NewUserStore(pool)}.updateRole)
+			users := adminUserHandler{auth.NewUserStore(pool)}
+			r.Get("/users", users.list)
+			r.Patch("/users/{userID}/role", users.updateRole)
 			venues := venueHandler{venue.NewStore(pool)}
 			r.Post("/venues", venues.create)
 			r.Get("/venues", venues.list)
@@ -64,6 +66,7 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, tokens *auth.TokenManager,
 			r.Post("/movies", h.create)
 			r.Post("/movies/{movieID}/submit", h.submit)
 			r.Post("/media/posters", h.uploadPoster)
+			r.Get("/venues", venueHandler{venue.NewStore(pool)}.list)
 		})
 		publicMovies := publicMovieHandler{movie.NewStore(pool)}
 		r.Get("/movies", publicMovies.list)
