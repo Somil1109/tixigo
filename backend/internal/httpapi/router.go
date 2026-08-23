@@ -14,6 +14,7 @@ import (
 	"github.com/tixigo/tixigo-api/internal/media"
 	"github.com/tixigo/tixigo-api/internal/movie"
 	"github.com/tixigo/tixigo-api/internal/notification"
+	"github.com/tixigo/tixigo-api/internal/seat"
 	"github.com/tixigo/tixigo-api/internal/venue"
 )
 
@@ -71,6 +72,7 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, tokens *auth.TokenManager,
 		publicMovies := publicMovieHandler{movie.NewStore(pool)}
 		r.Get("/movies", publicMovies.list)
 		r.Get("/movies/{movieID}", publicMovies.details)
+		r.Get("/screenings/{screeningID}/seats", publicSeatHandler{seat.NewStore(pool)}.seatMap)
 	})
 	return r
 }
