@@ -19,10 +19,11 @@ type authHandler struct {
 	tokens        *auth.TokenManager
 	email         notification.EmailSender
 	webOrigin     string
+	secureCookies bool
 }
 
-func newAuthHandler(users *auth.UserStore, sessions *auth.SessionStore, accountTokens *auth.AccountTokenStore, tokens *auth.TokenManager, email notification.EmailSender, webOrigin string) authHandler {
-	return authHandler{users: users, sessions: sessions, accountTokens: accountTokens, tokens: tokens, email: email, webOrigin: webOrigin}
+func newAuthHandler(users *auth.UserStore, sessions *auth.SessionStore, accountTokens *auth.AccountTokenStore, tokens *auth.TokenManager, email notification.EmailSender, webOrigin string, secureCookies bool) authHandler {
+	return authHandler{users: users, sessions: sessions, accountTokens: accountTokens, tokens: tokens, email: email, webOrigin: webOrigin, secureCookies: secureCookies}
 }
 func (h authHandler) register(w http.ResponseWriter, r *http.Request) {
 	var in struct {
@@ -168,11 +169,18 @@ func (h authHandler) logout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie("tixigo_refresh"); err == nil {
 		_ = h.sessions.Revoke(r.Context(), h.tokens.HashRefreshToken(c.Value))
 	}
-	http.SetCookie(w, &http.Cookie{Name: "tixigo_refresh", Value: "", Path: "/api/v1/auth", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode})
+	http.SetCookie(w, &http.Cookie{Name: "tixigo_refresh", Value: "", Path: "/api/v1/auth", MaxAge: -1, HttpOnly: true, Secure: h.secureCookies, SameSite: h.cookieSameSite()})
 	w.WriteHeader(http.StatusNoContent)
 }
 func (h authHandler) setRefreshCookie(w http.ResponseWriter, value string, expiry time.Time) {
-	http.SetCookie(w, &http.Cookie{Name: "tixigo_refresh", Value: value, Path: "/api/v1/auth", Expires: expiry, HttpOnly: true, Secure: false, SameSite: http.SameSiteLaxMode})
+	http.SetCookie(w, &http.Cookie{Name: "tixigo_refresh", Value: value, Path: "/api/v1/auth", Expires: expiry, HttpOnly: true, Secure: h.secureCookies, SameSite: h.cookieSameSite()})
+}
+
+func (h authHandler) cookieSameSite() http.SameSite {
+	if h.secureCookies {
+		return http.SameSiteNoneMode
+	}
+	return http.SameSiteLaxMode
 }
 
 func (h authHandler) me(w http.ResponseWriter, r *http.Request) {

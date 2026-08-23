@@ -23,6 +23,8 @@ import (
 
 func NewRouter(cfg config.Config, pool *pgxpool.Pool, tokens *auth.TokenManager, email notification.EmailSender, hub *realtime.Hub) http.Handler {
 	r := chi.NewRouter()
+	r.Use(productionMiddleware)
+	r.Use(newRateLimiter(180, time.Minute))
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{cfg.WebOrigin},
 		AllowedMethods:   []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"},
@@ -44,14 +46,15 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, tokens *auth.TokenManager,
 		hub.Serve(w, request, chi.URLParam(request, "screeningID"), cfg.WebOrigin)
 	})
 	r.Route("/api/v1", func(r chi.Router) {
-		h := newAuthHandler(auth.NewUserStore(pool), auth.NewSessionStore(pool), auth.NewAccountTokenStore(pool), tokens, email, cfg.WebOrigin)
-		r.Post("/auth/register", h.register)
-		r.Post("/auth/login", h.login)
-		r.Post("/auth/refresh", h.refresh)
+		h := newAuthHandler(auth.NewUserStore(pool), auth.NewSessionStore(pool), auth.NewAccountTokenStore(pool), tokens, email, cfg.WebOrigin, cfg.Environment == "production")
+		authLimit := newRateLimiter(20, time.Minute)
+		r.With(authLimit).Post("/auth/register", h.register)
+		r.With(authLimit).Post("/auth/login", h.login)
+		r.With(authLimit).Post("/auth/refresh", h.refresh)
 		r.Post("/auth/logout", h.logout)
 		r.Post("/auth/verify-email", h.verifyEmail)
-		r.Post("/auth/forgot-password", h.forgotPassword)
-		r.Post("/auth/reset-password", h.resetPassword)
+		r.With(authLimit).Post("/auth/forgot-password", h.forgotPassword)
+		r.With(authLimit).Post("/auth/reset-password", h.resetPassword)
 		r.With(requireAuth(tokens)).Get("/auth/me", h.me)
 		r.Route("/admin", func(r chi.Router) {
 			r.Use(requireAuth(tokens))

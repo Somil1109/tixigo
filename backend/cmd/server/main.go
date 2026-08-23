@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -22,6 +23,9 @@ import (
 
 func main() {
 	cfg := config.Load()
+	if cfg.Environment == "production" {
+		slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -71,6 +75,8 @@ func main() {
 		Addr:              ":" + cfg.Port,
 		Handler:           httpapi.NewRouter(cfg, pool, tokens, email, hub),
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	log.Printf("Tixigo API listening on :%s (%s)", cfg.Port, cfg.Environment)
