@@ -3,6 +3,7 @@ import { Link, Route, Routes } from "react-router-dom";
 import { HomePage } from "./pages/HomePage";
 import { useAuth } from "./features/auth/AuthContext";
 import { ForgotPasswordPage, LoginPage, RegisterPage, ResetPasswordPage, VerifyEmailPage } from "./features/auth/AuthPages";
+import { AdminPage } from "./pages/AdminPage";
 
 function Header() {
   const {user,logout}=useAuth();
@@ -22,6 +23,7 @@ export function App() {
     <Route path="/" element={<HomePage />} />
     <Route path="/movies" element={<Placeholder title="Now showing" />} />
     <Route path="/login" element={<LoginPage />} /><Route path="/register" element={<RegisterPage />} /><Route path="/forgot-password" element={<ForgotPasswordPage />} /><Route path="/reset-password" element={<ResetPasswordPage />} /><Route path="/verify-email" element={<VerifyEmailPage />} />
+    <Route path="/admin" element={<AdminPage/>}/>
     <Route path="*" element={<Placeholder title="Coming soon" />} />
   </Routes></>;
 }
