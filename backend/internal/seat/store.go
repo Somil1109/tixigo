@@ -30,7 +30,7 @@ func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool} }
 
 func (s *Store) Map(ctx context.Context, screeningID string) (ScreeningMap, error) {
 	var result ScreeningMap
-	err := s.pool.QueryRow(ctx, `SELECT sc.id::text,m.id::text,m.title,v.name,sc.starts_at FROM screenings sc JOIN movies m ON m.id=sc.movie_id JOIN venues v ON v.id=sc.venue_id WHERE sc.id=$1 AND m.status='published'`, screeningID).Scan(&result.ScreeningID, &result.MovieID, &result.MovieTitle, &result.VenueName, &result.StartsAt)
+	err := s.pool.QueryRow(ctx, `SELECT sc.id::text,m.id::text,m.title,v.name,sc.starts_at FROM screenings sc JOIN movies m ON m.id=sc.movie_id JOIN venues v ON v.id=sc.venue_id WHERE sc.id=$1 AND sc.status='scheduled' AND m.status='published'`, screeningID).Scan(&result.ScreeningID, &result.MovieID, &result.MovieTitle, &result.VenueName, &result.StartsAt)
 	if err != nil {
 		return result, err
 	}

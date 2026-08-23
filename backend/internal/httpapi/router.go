@@ -69,9 +69,13 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, tokens *auth.TokenManager,
 		r.Route("/organiser", func(r chi.Router) {
 			r.Use(requireAuth(tokens))
 			r.Use(requireRole(auth.RoleOrganiser, auth.RoleAdmin))
-			h := organiserMovieHandler{movie.NewStore(pool), media.NewCloudinary(cfg.CloudinaryCloudName, cfg.CloudinaryAPIKey, cfg.CloudinaryAPISecret)}
+			h := organiserMovieHandler{movie.NewStore(pool), media.NewCloudinary(cfg.CloudinaryCloudName, cfg.CloudinaryAPIKey, cfg.CloudinaryAPISecret), email, hub}
 			r.Post("/movies", h.create)
+			r.Get("/movies", h.managed)
+			r.Patch("/movies/{movieID}", h.update)
 			r.Post("/movies/{movieID}/submit", h.submit)
+			r.Post("/movies/{movieID}/screenings", h.addScreening)
+			r.Delete("/screenings/{screeningID}", h.cancelScreening)
 			r.Post("/media/posters", h.uploadPoster)
 			r.Get("/venues", venueHandler{venue.NewStore(pool)}.list)
 		})

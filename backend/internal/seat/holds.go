@@ -51,7 +51,7 @@ func (s *Store) Hold(ctx context.Context, screeningID, userID string, seatIDs []
 		return result, ErrEmailUnverified
 	}
 	var valid bool
-	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM screenings sc JOIN movies m ON m.id=sc.movie_id WHERE sc.id=$1 AND sc.starts_at>now() AND m.status='published')`, screeningID).Scan(&valid); err != nil || !valid {
+	if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM screenings sc JOIN movies m ON m.id=sc.movie_id WHERE sc.id=$1 AND sc.status='scheduled' AND sc.starts_at>now() AND m.status='published')`, screeningID).Scan(&valid); err != nil || !valid {
 		return result, ErrSeatUnavailable
 	}
 	_, err = tx.Exec(ctx, `UPDATE screening_seats SET status='available',held_by=NULL,hold_id=NULL,hold_expires_at=NULL WHERE screening_id=$1 AND status='held' AND hold_expires_at<=now()`, screeningID)

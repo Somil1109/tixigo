@@ -37,7 +37,7 @@ type MovieDetails struct {
 }
 
 func (s *Store) Search(ctx context.Context, f Filters) ([]PublicMovie, error) {
-	rows, err := s.pool.Query(ctx, `SELECT m.id::text,m.title,m.poster_url,m.genre,m.language,m.duration_minutes,m.age_rating,MIN(sc.starts_at),MIN(p.price_paise) FROM movies m JOIN screenings sc ON sc.movie_id=m.id JOIN venues v ON v.id=sc.venue_id JOIN screening_category_prices p ON p.screening_id=sc.id WHERE m.status='published' AND sc.starts_at>now() AND ($1='' OR m.title ILIKE '%'||$1||'%') AND ($2='' OR lower(v.city)=lower($2)) AND ($3='' OR lower(m.language)=lower($3)) AND ($4='' OR $4=ANY(m.genre)) AND ($5::timestamptz IS NULL OR sc.starts_at >= $5) AND ($6::timestamptz IS NULL OR sc.starts_at < $6) AND ($7=0 OR p.price_paise >= $7) AND ($8=0 OR p.price_paise <= $8) GROUP BY m.id ORDER BY MIN(sc.starts_at),m.title`, f.Query, f.City, f.Language, f.Genre, f.StartsAfter, f.StartsBefore, f.MinPrice, f.MaxPrice)
+	rows, err := s.pool.Query(ctx, `SELECT m.id::text,m.title,m.poster_url,m.genre,m.language,m.duration_minutes,m.age_rating,MIN(sc.starts_at),MIN(p.price_paise) FROM movies m JOIN screenings sc ON sc.movie_id=m.id JOIN venues v ON v.id=sc.venue_id JOIN screening_category_prices p ON p.screening_id=sc.id WHERE m.status='published' AND sc.status='scheduled' AND sc.starts_at>now() AND ($1='' OR m.title ILIKE '%'||$1||'%') AND ($2='' OR lower(v.city)=lower($2)) AND ($3='' OR lower(m.language)=lower($3)) AND ($4='' OR $4=ANY(m.genre)) AND ($5::timestamptz IS NULL OR sc.starts_at >= $5) AND ($6::timestamptz IS NULL OR sc.starts_at < $6) AND ($7=0 OR p.price_paise >= $7) AND ($8=0 OR p.price_paise <= $8) GROUP BY m.id ORDER BY MIN(sc.starts_at),m.title`, f.Query, f.City, f.Language, f.Genre, f.StartsAfter, f.StartsBefore, f.MinPrice, f.MaxPrice)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +58,7 @@ func (s *Store) Details(ctx context.Context, id string) (MovieDetails, error) {
 	if err != nil {
 		return out, err
 	}
-	rows, err := s.pool.Query(ctx, `SELECT sc.id::text,v.id::text,v.name,v.city,sc.starts_at,p.category,p.price_paise FROM screenings sc JOIN venues v ON v.id=sc.venue_id JOIN screening_category_prices p ON p.screening_id=sc.id WHERE sc.movie_id=$1 AND sc.starts_at>now() ORDER BY sc.starts_at,p.category`, id)
+	rows, err := s.pool.Query(ctx, `SELECT sc.id::text,v.id::text,v.name,v.city,sc.starts_at,p.category,p.price_paise FROM screenings sc JOIN venues v ON v.id=sc.venue_id JOIN screening_category_prices p ON p.screening_id=sc.id WHERE sc.movie_id=$1 AND sc.status='scheduled' AND sc.starts_at>now() ORDER BY sc.starts_at,p.category`, id)
 	if err != nil {
 		return out, err
 	}

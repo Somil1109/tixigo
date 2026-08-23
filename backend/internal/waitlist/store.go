@@ -52,7 +52,7 @@ SELECT 1 FROM screenings sc
 JOIN movies m ON m.id=sc.movie_id
 JOIN users u ON u.id=$1
 JOIN screening_seats ss ON ss.screening_id=sc.id AND ss.category=$3
-WHERE sc.id=$2 AND sc.starts_at>now() AND m.status='published' AND u.email_verified_at IS NOT NULL
+WHERE sc.id=$2 AND sc.status='scheduled' AND sc.starts_at>now() AND m.status='published' AND u.email_verified_at IS NOT NULL
 )`, userID, screeningID, category).Scan(&valid)
 	if err != nil || !valid {
 		return result, ErrInvalidEntry

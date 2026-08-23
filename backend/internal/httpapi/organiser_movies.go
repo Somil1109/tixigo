@@ -5,12 +5,16 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/tixigo/tixigo-api/internal/media"
 	"github.com/tixigo/tixigo-api/internal/movie"
+	"github.com/tixigo/tixigo-api/internal/notification"
+	"github.com/tixigo/tixigo-api/internal/realtime"
 	"net/http"
 )
 
 type organiserMovieHandler struct {
 	movies *movie.Store
 	media  *media.Cloudinary
+	email  notification.EmailSender
+	hub    *realtime.Hub
 }
 
 func (h organiserMovieHandler) submit(w http.ResponseWriter, r *http.Request) {
