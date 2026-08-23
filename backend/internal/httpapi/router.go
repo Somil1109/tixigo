@@ -65,9 +65,9 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, tokens *auth.TokenManager,
 			r.Post("/movies/{movieID}/submit", h.submit)
 			r.Post("/media/posters", h.uploadPoster)
 		})
-		r.Get("/movies", func(w http.ResponseWriter, _ *http.Request) {
-			writeJSON(w, http.StatusOK, map[string]any{"data": []any{}})
-		})
+		publicMovies := publicMovieHandler{movie.NewStore(pool)}
+		r.Get("/movies", publicMovies.list)
+		r.Get("/movies/{movieID}", publicMovies.details)
 	})
 	return r
 }
