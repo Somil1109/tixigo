@@ -94,6 +94,7 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, tokens *auth.TokenManager,
 		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Get("/bookings", bookings.list)
 		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Get("/bookings/{bookingID}", bookings.details)
 		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Post("/bookings/{bookingID}/cancel", bookings.cancel)
+		r.With(requireAuth(tokens), requireRole(auth.RoleOrganiser, auth.RoleAdmin)).Post("/tickets/admit", bookings.admit)
 		waiting := waitlistHandler{waitingStore, email, hub}
 		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Post("/screenings/{screeningID}/waitlist", waiting.join)
 		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Get("/waitlist", waiting.list)
