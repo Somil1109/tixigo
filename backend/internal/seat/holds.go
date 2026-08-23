@@ -99,7 +99,10 @@ func (s *Store) Release(ctx context.Context, holdID, userID string) (string, err
 	if err != nil {
 		return "", ErrSeatUnavailable
 	}
-	if _, err = tx.Exec(ctx, `UPDATE screening_seats SET status='available',held_by=NULL,hold_id=NULL,hold_expires_at=NULL WHERE hold_id=$1 AND status='held'`, holdID); err != nil {
+	if _, err = tx.Exec(ctx, `UPDATE waitlist_entries SET status='cancelled' WHERE id IN (SELECT waitlist_entry_id FROM screening_seats WHERE hold_id=$1 AND waitlist_entry_id IS NOT NULL) AND status='offered'`, holdID); err != nil {
+		return "", err
+	}
+	if _, err = tx.Exec(ctx, `UPDATE screening_seats SET status='available',held_by=NULL,hold_id=NULL,hold_expires_at=NULL,waitlist_entry_id=NULL WHERE hold_id=$1 AND status IN ('held','waitlist_reserved')`, holdID); err != nil {
 		return "", err
 	}
 	return screeningID, tx.Commit(ctx)
@@ -128,7 +131,10 @@ func (s *Store) ReleaseExpired(ctx context.Context) ([]string, error) {
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	if _, err = tx.Exec(ctx, `UPDATE screening_seats SET status='available',held_by=NULL,hold_id=NULL,hold_expires_at=NULL WHERE hold_id IN (SELECT id FROM seat_holds WHERE status='active' AND expires_at<=now()) AND status='held'`); err != nil {
+	if _, err = tx.Exec(ctx, `UPDATE waitlist_entries SET status='expired' WHERE status='offered' AND offer_expires_at<=now()`); err != nil {
+		return nil, err
+	}
+	if _, err = tx.Exec(ctx, `UPDATE screening_seats SET status='available',held_by=NULL,hold_id=NULL,hold_expires_at=NULL,waitlist_entry_id=NULL WHERE hold_id IN (SELECT id FROM seat_holds WHERE status='active' AND expires_at<=now()) AND status IN ('held','waitlist_reserved')`); err != nil {
 		return nil, err
 	}
 	if _, err = tx.Exec(ctx, `UPDATE seat_holds SET status='expired' WHERE status='active' AND expires_at<=now()`); err != nil {
@@ -143,7 +149,7 @@ func (s *Store) HoldDetails(ctx context.Context, holdID, userID string) (Checkou
 	if err != nil {
 		return result, err
 	}
-	rows, err := s.pool.Query(ctx, `SELECT id::text,seat_key,row_label,seat_number,category,price_paise,status FROM screening_seats WHERE hold_id=$1 AND status='held' ORDER BY row_label,seat_key`, holdID)
+	rows, err := s.pool.Query(ctx, `SELECT id::text,seat_key,row_label,seat_number,category,price_paise,status FROM screening_seats WHERE hold_id=$1 AND status IN ('held','waitlist_reserved') ORDER BY row_label,seat_key`, holdID)
 	if err != nil {
 		return result, err
 	}

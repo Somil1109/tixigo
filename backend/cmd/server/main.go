@@ -17,6 +17,7 @@ import (
 	"github.com/tixigo/tixigo-api/internal/notification"
 	"github.com/tixigo/tixigo-api/internal/realtime"
 	"github.com/tixigo/tixigo-api/internal/seat"
+	"github.com/tixigo/tixigo-api/internal/waitlist"
 )
 
 func main() {
@@ -34,6 +35,8 @@ func main() {
 		log.Fatalf("authentication configuration: %v", err)
 	}
 	hub := realtime.NewHub()
+	email := notification.NewEmailSender(cfg)
+	waiting := waitlist.NewStore(pool)
 	go func() {
 		ticker := time.NewTicker(15 * time.Second)
 		defer ticker.Stop()
@@ -50,6 +53,15 @@ func main() {
 				}
 				for _, screeningID := range screeningIDs {
 					hub.Publish(screeningID)
+					offers, matchErr := waiting.Match(ctx, screeningID)
+					if matchErr != nil {
+						log.Printf("match waitlist for screening %s: %v", screeningID, matchErr)
+						continue
+					}
+					waitlist.NotifyOffers(ctx, email, offers)
+					if len(offers) > 0 {
+						hub.Publish(screeningID)
+					}
 				}
 			}
 		}
@@ -57,7 +69,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           httpapi.NewRouter(cfg, pool, tokens, notification.NewEmailSender(cfg), hub),
+		Handler:           httpapi.NewRouter(cfg, pool, tokens, email, hub),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

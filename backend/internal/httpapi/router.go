@@ -18,6 +18,7 @@ import (
 	"github.com/tixigo/tixigo-api/internal/realtime"
 	"github.com/tixigo/tixigo-api/internal/seat"
 	"github.com/tixigo/tixigo-api/internal/venue"
+	"github.com/tixigo/tixigo-api/internal/waitlist"
 )
 
 func NewRouter(cfg config.Config, pool *pgxpool.Pool, tokens *auth.TokenManager, email notification.EmailSender, hub *realtime.Hub) http.Handler {
@@ -78,16 +79,21 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, tokens *auth.TokenManager,
 		r.Get("/movies", publicMovies.list)
 		r.Get("/movies/{movieID}", publicMovies.details)
 		r.Get("/screenings/{screeningID}/seats", publicSeatHandler{seat.NewStore(pool)}.seatMap)
-		holds := holdHandler{seat.NewStore(pool), hub}
+		waitingStore := waitlist.NewStore(pool)
+		holds := holdHandler{seat.NewStore(pool), hub, waitingStore, email}
 		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Post("/screenings/{screeningID}/holds", holds.create)
 		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Delete("/holds/{holdID}", holds.release)
 		checkout := checkoutHandler{seat.NewStore(pool), booking.NewStore(pool), email, hub}
 		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Get("/holds/{holdID}", checkout.details)
 		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Post("/holds/{holdID}/checkout", checkout.confirm)
-		bookings := bookingHandler{booking.NewStore(pool), email, hub}
+		bookings := bookingHandler{booking.NewStore(pool), email, hub, waitingStore}
 		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Get("/bookings", bookings.list)
 		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Get("/bookings/{bookingID}", bookings.details)
 		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Post("/bookings/{bookingID}/cancel", bookings.cancel)
+		waiting := waitlistHandler{waitingStore, email, hub}
+		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Post("/screenings/{screeningID}/waitlist", waiting.join)
+		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Get("/waitlist", waiting.list)
+		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Delete("/waitlist/{entryID}", waiting.cancel)
 	})
 	return r
 }

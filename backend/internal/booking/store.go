@@ -54,7 +54,7 @@ func (s *Store) Confirm(ctx context.Context, holdID, userID string) (Booking, er
 	if err != nil || holdStatus != "active" || !expires.After(time.Now()) {
 		return result, ErrHoldUnavailable
 	}
-	rows, err := tx.Query(ctx, `SELECT id::text,seat_key,row_label,seat_number,category,price_paise,status FROM screening_seats WHERE hold_id=$1 AND status='held' FOR UPDATE`, holdID)
+	rows, err := tx.Query(ctx, `SELECT id::text,seat_key,row_label,seat_number,category,price_paise,status FROM screening_seats WHERE hold_id=$1 AND status IN ('held','waitlist_reserved') FOR UPDATE`, holdID)
 	if err != nil {
 		return result, err
 	}
@@ -82,7 +82,10 @@ func (s *Store) Confirm(ctx context.Context, holdID, userID string) (Booking, er
 	if _, err = tx.Exec(ctx, `INSERT INTO booking_seats(booking_id,screening_seat_id) SELECT $1,id FROM screening_seats WHERE hold_id=$2`, result.ID, holdID); err != nil {
 		return result, err
 	}
-	if _, err = tx.Exec(ctx, `UPDATE screening_seats SET status='booked',held_by=NULL,hold_expires_at=NULL,hold_id=NULL WHERE hold_id=$1 AND status='held'`, holdID); err != nil {
+	if _, err = tx.Exec(ctx, `UPDATE waitlist_entries SET status='fulfilled' WHERE id IN (SELECT waitlist_entry_id FROM screening_seats WHERE hold_id=$1 AND waitlist_entry_id IS NOT NULL)`, holdID); err != nil {
+		return result, err
+	}
+	if _, err = tx.Exec(ctx, `UPDATE screening_seats SET status='booked',held_by=NULL,hold_expires_at=NULL,hold_id=NULL,waitlist_entry_id=NULL WHERE hold_id=$1 AND status IN ('held','waitlist_reserved')`, holdID); err != nil {
 		return result, err
 	}
 	if _, err = tx.Exec(ctx, `UPDATE seat_holds SET status='completed' WHERE id=$1`, holdID); err != nil {

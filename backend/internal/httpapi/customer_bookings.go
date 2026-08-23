@@ -10,12 +10,14 @@ import (
 	"github.com/tixigo/tixigo-api/internal/booking"
 	"github.com/tixigo/tixigo-api/internal/notification"
 	"github.com/tixigo/tixigo-api/internal/realtime"
+	"github.com/tixigo/tixigo-api/internal/waitlist"
 )
 
 type bookingHandler struct {
 	bookings *booking.Store
 	email    notification.EmailSender
 	hub      *realtime.Hub
+	waitlist *waitlist.Store
 }
 
 func (h bookingHandler) list(w http.ResponseWriter, r *http.Request) {
@@ -56,6 +58,11 @@ func (h bookingHandler) cancel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.hub.Publish(result.ScreeningID)
+	offers, _ := h.waitlist.Match(r.Context(), result.ScreeningID)
+	waitlist.NotifyOffers(r.Context(), h.email, offers)
+	if len(offers) > 0 {
+		h.hub.Publish(result.ScreeningID)
+	}
 	body := fmt.Sprintf(`<h1>Your Tixigo booking was cancelled</h1><p><strong>%s</strong></p><p>%s · %s</p><p>Booking reference: <strong>%s</strong></p>`, html.EscapeString(result.MovieTitle), html.EscapeString(result.VenueName), result.StartsAt.Format("02 Jan 2006, 03:04 PM"), result.Reference)
 	emailSent := h.email.Send(r.Context(), result.CustomerEmail, "Tixigo cancellation "+result.Reference, body) == nil
 	writeJSON(w, http.StatusOK, map[string]any{"data": map[string]any{"booking": result, "emailSent": emailSent}})

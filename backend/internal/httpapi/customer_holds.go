@@ -4,14 +4,18 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/go-chi/chi/v5"
+	"github.com/tixigo/tixigo-api/internal/notification"
 	"github.com/tixigo/tixigo-api/internal/realtime"
 	"github.com/tixigo/tixigo-api/internal/seat"
+	"github.com/tixigo/tixigo-api/internal/waitlist"
 	"net/http"
 )
 
 type holdHandler struct {
-	seats *seat.Store
-	hub   *realtime.Hub
+	seats    *seat.Store
+	hub      *realtime.Hub
+	waitlist *waitlist.Store
+	email    notification.EmailSender
 }
 
 func (h holdHandler) create(w http.ResponseWriter, r *http.Request) {
@@ -41,5 +45,10 @@ func (h holdHandler) release(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.hub.Publish(screeningID)
+	offers, _ := h.waitlist.Match(r.Context(), screeningID)
+	waitlist.NotifyOffers(r.Context(), h.email, offers)
+	if len(offers) > 0 {
+		h.hub.Publish(screeningID)
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
