@@ -7,6 +7,7 @@ import { AdminPage } from "./pages/AdminPage";
 import { OrganiserPage } from "./pages/OrganiserPage";
 import { MoviesPage } from "./pages/MoviesPage";
 import { MovieDetailsPage } from "./pages/MovieDetailsPage";
+import { SeatMapPage } from "./pages/SeatMapPage";
 
 function Header() {
   const {user,logout}=useAuth();
@@ -25,6 +26,7 @@ export function App() {
   return <><Header /><Routes>
     <Route path="/" element={<HomePage />} />
     <Route path="/movies" element={<MoviesPage />} /><Route path="/movies/:id" element={<MovieDetailsPage/>}/>
+    <Route path="/screenings/:screeningId/seats" element={<SeatMapPage/>}/>
     <Route path="/login" element={<LoginPage />} /><Route path="/register" element={<RegisterPage />} /><Route path="/forgot-password" element={<ForgotPasswordPage />} /><Route path="/reset-password" element={<ResetPasswordPage />} /><Route path="/verify-email" element={<VerifyEmailPage />} />
     <Route path="/admin" element={<AdminPage/>}/>
     <Route path="/organiser" element={<OrganiserPage/>}/>
