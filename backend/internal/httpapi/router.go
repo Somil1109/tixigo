@@ -80,6 +80,10 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, tokens *auth.TokenManager,
 		checkout := checkoutHandler{seat.NewStore(pool), booking.NewStore(pool), email}
 		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Get("/holds/{holdID}", checkout.details)
 		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Post("/holds/{holdID}/checkout", checkout.confirm)
+		bookings := bookingHandler{booking.NewStore(pool), email}
+		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Get("/bookings", bookings.list)
+		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Get("/bookings/{bookingID}", bookings.details)
+		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Post("/bookings/{bookingID}/cancel", bookings.cancel)
 	})
 	return r
 }

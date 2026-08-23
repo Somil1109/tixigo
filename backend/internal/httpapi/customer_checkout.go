@@ -13,6 +13,14 @@ import (
 	"strings"
 )
 
+func ticketQRCode(reference string) (string, error) {
+	png, err := qrcode.Encode(reference, qrcode.Medium, 256)
+	if err != nil {
+		return "", err
+	}
+	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(png), nil
+}
+
 type checkoutHandler struct {
 	seats    *seat.Store
 	bookings *booking.Store
@@ -33,12 +41,11 @@ func (h checkoutHandler) confirm(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 409, map[string]string{"message": "Hold was not found or has expired."})
 		return
 	}
-	png, err := qrcode.Encode(result.Reference, qrcode.Medium, 256)
+	qr, err := ticketQRCode(result.Reference)
 	if err != nil {
 		writeJSON(w, 500, map[string]string{"message": "Booking confirmed, but ticket generation failed."})
 		return
 	}
-	qr := "data:image/png;base64," + base64.StdEncoding.EncodeToString(png)
 	keys := make([]string, 0, len(result.Seats))
 	for _, item := range result.Seats {
 		keys = append(keys, item.Key)
