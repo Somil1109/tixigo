@@ -103,3 +103,12 @@ func (h authHandler) logout(w http.ResponseWriter, r *http.Request) {
 func (h authHandler) setRefreshCookie(w http.ResponseWriter, value string, expiry time.Time) {
 	http.SetCookie(w, &http.Cookie{Name: "tixigo_refresh", Value: value, Path: "/api/v1/auth", Expires: expiry, HttpOnly: true, Secure: false, SameSite: http.SameSiteLaxMode})
 }
+
+func (h authHandler) me(w http.ResponseWriter, r *http.Request) {
+	u, err := h.users.ByID(r.Context(), accessClaims(r).Subject)
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"message": "Account unavailable."})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"data": u})
+}
