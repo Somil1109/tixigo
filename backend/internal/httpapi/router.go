@@ -12,6 +12,7 @@ import (
 	"github.com/tixigo/tixigo-api/internal/auth"
 	"github.com/tixigo/tixigo-api/internal/config"
 	"github.com/tixigo/tixigo-api/internal/notification"
+	"github.com/tixigo/tixigo-api/internal/venue"
 )
 
 func NewRouter(cfg config.Config, pool *pgxpool.Pool, tokens *auth.TokenManager, email notification.EmailSender) http.Handler {
@@ -47,6 +48,9 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, tokens *auth.TokenManager,
 			r.Use(requireAuth(tokens))
 			r.Use(requireRole(auth.RoleAdmin))
 			r.Patch("/users/{userID}/role", adminUserHandler{auth.NewUserStore(pool)}.updateRole)
+			venues := venueHandler{venue.NewStore(pool)}
+			r.Post("/venues", venues.create)
+			r.Get("/venues", venues.list)
 		})
 		r.Get("/movies", func(w http.ResponseWriter, _ *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]any{"data": []any{}})
