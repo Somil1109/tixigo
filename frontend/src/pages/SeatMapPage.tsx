@@ -18,6 +18,9 @@ export function SeatMapPage() {
   const [remaining, setRemaining] = useState(0);
   const [live, setLive] = useState(false);
   const [error, setError] = useState("");
+  const [waitlistCategory, setWaitlistCategory] = useState("");
+  const [waitlistQuantity, setWaitlistQuantity] = useState(1);
+  const [waitlistMessage, setWaitlistMessage] = useState("");
 
   const refreshMap = useCallback(async () => {
     if (!screeningId) return;
@@ -82,6 +85,7 @@ export function SeatMapPage() {
     for (const seat of data?.seats ?? []) grouped.set(seat.row, [...(grouped.get(seat.row) ?? []), seat]);
     return [...grouped.entries()];
   }, [data]);
+  const categories = useMemo(() => [...new Set(data?.seats.map(seat => seat.category) ?? [])], [data]);
 
   if (!data) return <main className="placeholder"><p>Loading seat map…</p></main>;
   const chosen = hold?.seats ?? data.seats.filter(seat => selected.includes(seat.id));
@@ -115,12 +119,25 @@ export function SeatMapPage() {
     }
   }
 
+  async function joinWaitlist() {
+    if (!auth.user) { navigate("/login"); return; }
+    const category = waitlistCategory || categories[0];
+    if (!category) return;
+    try {
+      await auth.request(`/screenings/${screeningId}/waitlist`, { method: "POST", body: JSON.stringify({ category, quantity: waitlistQuantity }) });
+      setWaitlistMessage("You're on the waitlist. We'll email you when seats are reserved.");
+    } catch (reason) {
+      setWaitlistMessage(reason instanceof ApiError ? reason.message : "Could not join the waitlist.");
+    }
+  }
+
   const clock = `${String(Math.floor(remaining / 60)).padStart(2, "0")}:${String(remaining % 60).padStart(2, "0")}`;
   return <main className="seat-page">
     <header><span className="eyebrow">CHOOSE YOUR SEATS</span><h1>{data.movieTitle}</h1><p>{data.venueName} · {new Date(data.startsAt).toLocaleString("en-IN")}</p><span className={`live-status ${live ? "connected" : ""}`}><i/>{live ? "Live seat availability" : "Reconnecting live updates…"}</span>{hold && <strong className="hold-clock">Held for {clock}</strong>}</header>
     <div className="screen">SCREEN</div>
     <section className="seat-map">{rows.map(([row, seats]) => <div className="seat-row" key={row}><strong>{row}</strong><div>{seats.map(seat => <button key={seat.id} className={`seat ${seat.status} ${(selected.includes(seat.id) || hold?.seats.some(item => item.id === seat.id)) ? "selected" : ""}`} disabled={seat.status !== "available" || !!hold} onClick={() => toggle(seat)} title={`${seat.key} · ${seat.category} · ₹${seat.pricePaise / 100}`}>{seat.number}</button>)}</div><strong>{row}</strong></div>)}</section>
     <div className="seat-legend"><span><i className="available"/>Available</span><span><i className="selected"/>Selected</span><span><i className="held"/>Held</span><span><i className="booked"/>Booked</span></div>
+    <section className="waitlist-join"><div><span className="eyebrow">CAN'T FIND ENOUGH SEATS?</span><h2>Join the waitlist</h2><p>Choose a category and quantity. Any matching seats can fulfil your request.</p></div><select value={waitlistCategory || categories[0] || ""} onChange={event => setWaitlistCategory(event.target.value)}>{categories.map(category => <option value={category} key={category}>{category}</option>)}</select><input aria-label="Waitlist quantity" type="number" min="1" max="10" value={waitlistQuantity} onChange={event => setWaitlistQuantity(Number(event.target.value))}/><button onClick={() => void joinWaitlist()}>Join waitlist</button>{waitlistMessage && <small>{waitlistMessage}</small>}</section>
     {error && <p className="form-error seat-error">{error}</p>}
     <aside className="seat-summary"><div><strong>{chosen.length} seat{chosen.length === 1 ? "" : "s"}</strong><span>{chosen.map(seat => seat.key).join(", ") || "Select up to 10 seats"}</span></div><div><strong>₹{(chosen.reduce((sum, seat) => sum + seat.pricePaise, 0) / 100).toFixed(0)}</strong>{hold ? <><button className="secondary" onClick={() => void release()}>Release</button><button onClick={() => navigate(`/checkout/${hold.id}`)}>Checkout</button></> : <button disabled={!chosen.length} onClick={() => void createHold()}>Hold seats</button>}</div></aside>
   </main>;
