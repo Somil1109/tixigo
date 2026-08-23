@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -38,3 +39,4 @@ func (s *UserStore) ByID(ctx context.Context, id string) (User, error) {
 }
 
 var ErrInvalidCredentials = pgx.ErrNoRows
+var ErrInvalidAccountToken = errors.New("invalid or expired account token")

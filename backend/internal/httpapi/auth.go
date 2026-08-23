@@ -9,13 +9,14 @@ import (
 )
 
 type authHandler struct {
-	users    *auth.UserStore
-	sessions *auth.SessionStore
-	tokens   *auth.TokenManager
+	users         *auth.UserStore
+	sessions      *auth.SessionStore
+	accountTokens *auth.AccountTokenStore
+	tokens        *auth.TokenManager
 }
 
-func newAuthHandler(users *auth.UserStore, sessions *auth.SessionStore, tokens *auth.TokenManager) authHandler {
-	return authHandler{users, sessions, tokens}
+func newAuthHandler(users *auth.UserStore, sessions *auth.SessionStore, accountTokens *auth.AccountTokenStore, tokens *auth.TokenManager) authHandler {
+	return authHandler{users: users, sessions: sessions, accountTokens: accountTokens, tokens: tokens}
 }
 func (h authHandler) register(w http.ResponseWriter, r *http.Request) {
 	var in struct {
@@ -37,7 +38,27 @@ func (h authHandler) register(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 409, map[string]string{"message": "An account with that email already exists."})
 		return
 	}
+	_, tokenHash, err := auth.NewAccountToken()
+	if err != nil || h.accountTokens.Create(r.Context(), u.ID, "verify_email", tokenHash, time.Now().Add(24*time.Hour)) != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": "Could not create verification request."})
+		return
+	}
 	writeJSON(w, 201, map[string]any{"data": map[string]any{"id": u.ID, "email": u.Email, "fullName": u.FullName, "role": u.Role}})
+}
+
+func (h authHandler) verifyEmail(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Token string `json:"token"`
+	}
+	if json.NewDecoder(r.Body).Decode(&in) != nil || strings.TrimSpace(in.Token) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Verification token is required."})
+		return
+	}
+	if h.accountTokens.VerifyEmail(r.Context(), auth.HashAccountToken(in.Token)) != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Verification link is invalid or expired."})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"message": "Email verified successfully."})
 }
 
 func (h authHandler) login(w http.ResponseWriter, r *http.Request) {

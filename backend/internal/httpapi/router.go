@@ -33,11 +33,12 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, tokens *auth.TokenManager)
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 	r.Route("/api/v1", func(r chi.Router) {
-		h := newAuthHandler(auth.NewUserStore(pool), auth.NewSessionStore(pool), tokens)
+		h := newAuthHandler(auth.NewUserStore(pool), auth.NewSessionStore(pool), auth.NewAccountTokenStore(pool), tokens)
 		r.Post("/auth/register", h.register)
 		r.Post("/auth/login", h.login)
 		r.Post("/auth/refresh", h.refresh)
 		r.Post("/auth/logout", h.logout)
+		r.Post("/auth/verify-email", h.verifyEmail)
 		r.With(requireAuth(tokens)).Get("/auth/me", h.me)
 		r.Get("/movies", func(w http.ResponseWriter, _ *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]any{"data": []any{}})
