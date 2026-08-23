@@ -44,3 +44,20 @@ func (s *AccountTokenStore) VerifyEmail(ctx context.Context, hash string) error 
 	}
 	return nil
 }
+
+func (s *AccountTokenStore) ResetPassword(ctx context.Context, tokenHash, passwordHash string) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	var userID string
+	err = tx.QueryRow(ctx, `WITH token AS (UPDATE account_tokens SET consumed_at=now() WHERE token_hash=$1 AND purpose='reset_password' AND consumed_at IS NULL AND expires_at>now() RETURNING user_id) UPDATE users SET password_hash=$2,updated_at=now() WHERE id=(SELECT user_id FROM token) RETURNING id::text`, tokenHash, passwordHash).Scan(&userID)
+	if err != nil {
+		return ErrInvalidAccountToken
+	}
+	if _, err = tx.Exec(ctx, `UPDATE refresh_tokens SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL`, userID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}

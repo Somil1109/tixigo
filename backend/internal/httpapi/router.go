@@ -39,6 +39,8 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, tokens *auth.TokenManager)
 		r.Post("/auth/refresh", h.refresh)
 		r.Post("/auth/logout", h.logout)
 		r.Post("/auth/verify-email", h.verifyEmail)
+		r.Post("/auth/forgot-password", h.forgotPassword)
+		r.Post("/auth/reset-password", h.resetPassword)
 		r.With(requireAuth(tokens)).Get("/auth/me", h.me)
 		r.Get("/movies", func(w http.ResponseWriter, _ *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]any{"data": []any{}})

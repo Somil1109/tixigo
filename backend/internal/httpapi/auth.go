@@ -61,6 +61,42 @@ func (h authHandler) verifyEmail(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"message": "Email verified successfully."})
 }
 
+func (h authHandler) forgotPassword(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Email string `json:"email"`
+	}
+	if json.NewDecoder(r.Body).Decode(&in) == nil {
+		if u, _, err := h.users.ByEmail(r.Context(), in.Email); err == nil {
+			_, hash, tokenErr := auth.NewAccountToken()
+			if tokenErr == nil {
+				_ = h.accountTokens.Create(r.Context(), u.ID, "reset_password", hash, time.Now().Add(time.Hour))
+			}
+		}
+	}
+	writeJSON(w, http.StatusAccepted, map[string]string{"message": "If that account exists, a reset link will be sent."})
+}
+
+func (h authHandler) resetPassword(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Token    string `json:"token"`
+		Password string `json:"password"`
+	}
+	if json.NewDecoder(r.Body).Decode(&in) != nil || strings.TrimSpace(in.Token) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Token and new password are required."})
+		return
+	}
+	hash, err := auth.HashPassword(in.Password)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": err.Error()})
+		return
+	}
+	if h.accountTokens.ResetPassword(r.Context(), auth.HashAccountToken(in.Token), hash) != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"message": "Reset link is invalid or expired."})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"message": "Password updated. Please sign in again."})
+}
+
 func (h authHandler) login(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Email    string `json:"email"`
