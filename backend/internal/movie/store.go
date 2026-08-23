@@ -34,6 +34,17 @@ type Store struct{ pool *pgxpool.Pool }
 
 func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool} }
 
+type ReviewItem struct {
+	ID              string    `json:"id"`
+	Title           string    `json:"title"`
+	PosterURL       string    `json:"posterUrl"`
+	Language        string    `json:"language"`
+	DurationMinutes int       `json:"durationMinutes"`
+	AgeRating       string    `json:"ageRating"`
+	OrganiserID     string    `json:"organiserId"`
+	CreatedAt       time.Time `json:"createdAt"`
+}
+
 func (d Draft) Validate() error {
 	if strings.TrimSpace(d.Title) == "" || strings.TrimSpace(d.Description) == "" || strings.TrimSpace(d.PosterURL) == "" || strings.TrimSpace(d.Language) == "" || strings.TrimSpace(d.AgeRating) == "" {
 		return errors.New("movie details are incomplete")
@@ -99,4 +110,41 @@ func (s *Store) CreateDraft(ctx context.Context, d Draft, organiserID string) (D
 		return d, err
 	}
 	return d, nil
+}
+
+func (s *Store) Submit(ctx context.Context, movieID, organiserID string) error {
+	result, err := s.pool.Exec(ctx, `UPDATE movies SET status='pending_approval',rejection_reason=NULL,updated_at=now() WHERE id=$1 AND organiser_id=$2 AND status IN ('draft','rejected')`, movieID, organiserID)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return errors.New("movie cannot be submitted")
+	}
+	return nil
+}
+func (s *Store) Pending(ctx context.Context) ([]ReviewItem, error) {
+	rows, err := s.pool.Query(ctx, `SELECT id::text,title,poster_url,language,duration_minutes,age_rating,organiser_id::text,created_at FROM movies WHERE status='pending_approval' ORDER BY created_at`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ReviewItem{}
+	for rows.Next() {
+		var item ReviewItem
+		if err := rows.Scan(&item.ID, &item.Title, &item.PosterURL, &item.Language, &item.DurationMinutes, &item.AgeRating, &item.OrganiserID, &item.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+func (s *Store) Review(ctx context.Context, movieID, adminID, status, reason string) error {
+	result, err := s.pool.Exec(ctx, `UPDATE movies SET status=$2,rejection_reason=NULLIF($3,''),approved_by=CASE WHEN $2='published' THEN $4::uuid ELSE NULL END,approved_at=CASE WHEN $2='published' THEN now() ELSE NULL END,updated_at=now() WHERE id=$1 AND status='pending_approval'`, movieID, status, reason, adminID)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return errors.New("movie is not pending approval")
+	}
+	return nil
 }

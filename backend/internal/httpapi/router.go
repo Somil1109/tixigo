@@ -53,12 +53,16 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, tokens *auth.TokenManager,
 			venues := venueHandler{venue.NewStore(pool)}
 			r.Post("/venues", venues.create)
 			r.Get("/venues", venues.list)
+			movies := adminMovieHandler{movie.NewStore(pool)}
+			r.Get("/movies/pending", movies.pending)
+			r.Patch("/movies/{movieID}/review", movies.review)
 		})
 		r.Route("/organiser", func(r chi.Router) {
 			r.Use(requireAuth(tokens))
 			r.Use(requireRole(auth.RoleOrganiser, auth.RoleAdmin))
 			h := organiserMovieHandler{movie.NewStore(pool), media.NewCloudinary(cfg.CloudinaryCloudName, cfg.CloudinaryAPIKey, cfg.CloudinaryAPISecret)}
 			r.Post("/movies", h.create)
+			r.Post("/movies/{movieID}/submit", h.submit)
 			r.Post("/media/posters", h.uploadPoster)
 		})
 		r.Get("/movies", func(w http.ResponseWriter, _ *http.Request) {

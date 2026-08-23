@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"github.com/go-chi/chi/v5"
 	"github.com/tixigo/tixigo-api/internal/media"
 	"github.com/tixigo/tixigo-api/internal/movie"
 	"net/http"
@@ -10,6 +11,14 @@ import (
 type organiserMovieHandler struct {
 	movies *movie.Store
 	media  *media.Cloudinary
+}
+
+func (h organiserMovieHandler) submit(w http.ResponseWriter, r *http.Request) {
+	if err := h.movies.Submit(r.Context(), chi.URLParam(r, "movieID"), accessClaims(r).Subject); err != nil {
+		writeJSON(w, 409, map[string]string{"message": "Movie cannot be submitted."})
+		return
+	}
+	writeJSON(w, 200, map[string]string{"message": "Movie submitted for approval."})
 }
 
 func (h organiserMovieHandler) create(w http.ResponseWriter, r *http.Request) {
