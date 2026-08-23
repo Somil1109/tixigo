@@ -73,6 +73,9 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, tokens *auth.TokenManager,
 		r.Get("/movies", publicMovies.list)
 		r.Get("/movies/{movieID}", publicMovies.details)
 		r.Get("/screenings/{screeningID}/seats", publicSeatHandler{seat.NewStore(pool)}.seatMap)
+		holds := holdHandler{seat.NewStore(pool)}
+		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Post("/screenings/{screeningID}/holds", holds.create)
+		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Delete("/holds/{holdID}", holds.release)
 	})
 	return r
 }

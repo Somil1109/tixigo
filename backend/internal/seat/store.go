@@ -34,7 +34,7 @@ func (s *Store) Map(ctx context.Context, screeningID string) (ScreeningMap, erro
 	if err != nil {
 		return result, err
 	}
-	rows, err := s.pool.Query(ctx, `SELECT id::text,seat_key,row_label,seat_number,category,price_paise,status FROM screening_seats WHERE screening_id=$1 ORDER BY row_label,seat_key`, screeningID)
+	rows, err := s.pool.Query(ctx, `SELECT id::text,seat_key,row_label,seat_number,category,price_paise,CASE WHEN status='held' AND hold_expires_at<=now() THEN 'available' ELSE status::text END FROM screening_seats WHERE screening_id=$1 ORDER BY row_label,seat_key`, screeningID)
 	if err != nil {
 		return result, err
 	}

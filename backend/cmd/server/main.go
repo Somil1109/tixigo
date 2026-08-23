@@ -15,6 +15,7 @@ import (
 	"github.com/tixigo/tixigo-api/internal/database"
 	"github.com/tixigo/tixigo-api/internal/httpapi"
 	"github.com/tixigo/tixigo-api/internal/notification"
+	"github.com/tixigo/tixigo-api/internal/seat"
 )
 
 func main() {
@@ -31,6 +32,21 @@ func main() {
 	if err != nil {
 		log.Fatalf("authentication configuration: %v", err)
 	}
+	go func() {
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+		store := seat.NewStore(pool)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if err := store.ReleaseExpired(ctx); err != nil {
+					log.Printf("release expired seat holds: %v", err)
+				}
+			}
+		}
+	}()
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
