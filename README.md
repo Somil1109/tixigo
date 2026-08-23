@@ -24,7 +24,7 @@ docker-compose.yml
 
 1. Copy `backend/.env.example` to `backend/.env` and set long JWT secrets.
 2. Start dependencies: `docker compose up -d`.
-3. Run database migrations (a migration runner will be added with the API data layer).
+3. Run database migrations: `cd backend && go run ./cmd/migrate`.
 4. Start the API: `cd backend && go run ./cmd/server`.
 5. Install frontend dependencies: `cd frontend && pnpm install`.
 6. Start the app: `cd frontend && pnpm dev`.
@@ -38,3 +38,5 @@ Mailpit is available at `http://localhost:8025` in development.
 - Database: Neon PostgreSQL
 - Email: Resend
 - Posters: Cloudinary
+
+Production configuration lives in `render.yaml`, `frontend/vercel.json`, and `infra/OPERATIONS.md`. GitHub Actions runs backend unit/integration checks, vet, the frontend build, and the Playwright booking journey.
