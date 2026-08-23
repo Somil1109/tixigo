@@ -15,6 +15,13 @@ type Hold struct {
 	ExpiresAt   time.Time `json:"expiresAt"`
 	Seats       []Seat    `json:"seats"`
 }
+type CheckoutHold struct {
+	Hold
+	MovieTitle string    `json:"movieTitle"`
+	VenueName  string    `json:"venueName"`
+	StartsAt   time.Time `json:"startsAt"`
+	TotalPaise int       `json:"totalPaise"`
+}
 
 func (s *Store) Hold(ctx context.Context, screeningID, userID string, seatIDs []string) (Hold, error) {
 	var result Hold
@@ -110,4 +117,26 @@ func (s *Store) ReleaseExpired(ctx context.Context) error {
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+func (s *Store) HoldDetails(ctx context.Context, holdID, userID string) (CheckoutHold, error) {
+	var result CheckoutHold
+	err := s.pool.QueryRow(ctx, `SELECT h.id::text,h.screening_id::text,h.expires_at,m.title,v.name,sc.starts_at FROM seat_holds h JOIN screenings sc ON sc.id=h.screening_id JOIN movies m ON m.id=sc.movie_id JOIN venues v ON v.id=sc.venue_id WHERE h.id=$1 AND h.user_id=$2 AND h.status='active' AND h.expires_at>now()`, holdID, userID).Scan(&result.ID, &result.ScreeningID, &result.ExpiresAt, &result.MovieTitle, &result.VenueName, &result.StartsAt)
+	if err != nil {
+		return result, err
+	}
+	rows, err := s.pool.Query(ctx, `SELECT id::text,seat_key,row_label,seat_number,category,price_paise,status FROM screening_seats WHERE hold_id=$1 AND status='held' ORDER BY row_label,seat_key`, holdID)
+	if err != nil {
+		return result, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var item Seat
+		if err := rows.Scan(&item.ID, &item.Key, &item.Row, &item.Number, &item.Category, &item.PricePaise, &item.Status); err != nil {
+			return result, err
+		}
+		result.Seats = append(result.Seats, item)
+		result.TotalPaise += item.PricePaise
+	}
+	return result, rows.Err()
 }

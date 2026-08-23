@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tixigo/tixigo-api/internal/auth"
+	"github.com/tixigo/tixigo-api/internal/booking"
 	"github.com/tixigo/tixigo-api/internal/config"
 	"github.com/tixigo/tixigo-api/internal/media"
 	"github.com/tixigo/tixigo-api/internal/movie"
@@ -76,6 +77,9 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, tokens *auth.TokenManager,
 		holds := holdHandler{seat.NewStore(pool)}
 		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Post("/screenings/{screeningID}/holds", holds.create)
 		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Delete("/holds/{holdID}", holds.release)
+		checkout := checkoutHandler{seat.NewStore(pool), booking.NewStore(pool), email}
+		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Get("/holds/{holdID}", checkout.details)
+		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Post("/holds/{holdID}/checkout", checkout.confirm)
 	})
 	return r
 }
