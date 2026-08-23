@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/tixigo/tixigo-api/internal/auth"
 	"github.com/tixigo/tixigo-api/internal/config"
 	"github.com/tixigo/tixigo-api/internal/database"
 	"github.com/tixigo/tixigo-api/internal/httpapi"
@@ -25,10 +26,14 @@ func main() {
 		log.Fatalf("database unavailable: %v", err)
 	}
 	defer pool.Close()
+	tokens, err := auth.NewTokenManager(cfg.AccessTokenSecret, cfg.RefreshTokenSecret, cfg.AccessTokenTTL, cfg.RefreshTokenTTL)
+	if err != nil {
+		log.Fatalf("authentication configuration: %v", err)
+	}
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           httpapi.NewRouter(cfg, pool),
+		Handler:           httpapi.NewRouter(cfg, pool, tokens),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
