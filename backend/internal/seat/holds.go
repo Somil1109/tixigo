@@ -76,6 +76,9 @@ func (s *Store) Hold(ctx context.Context, screeningID, userID string, seatIDs []
 		result.Seats = append(result.Seats, item)
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		return result, err
+	}
 	if len(result.Seats) != len(seatIDs) {
 		return Hold{}, ErrSeatUnavailable
 	}
@@ -85,38 +88,53 @@ func (s *Store) Hold(ctx context.Context, screeningID, userID string, seatIDs []
 	return result, nil
 }
 
-func (s *Store) Release(ctx context.Context, holdID, userID string) error {
+func (s *Store) Release(ctx context.Context, holdID, userID string) (string, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer tx.Rollback(ctx)
-	result, err := tx.Exec(ctx, `UPDATE seat_holds SET status='cancelled' WHERE id=$1 AND user_id=$2 AND status='active'`, holdID, userID)
+	var screeningID string
+	err = tx.QueryRow(ctx, `UPDATE seat_holds SET status='cancelled' WHERE id=$1 AND user_id=$2 AND status='active' RETURNING screening_id::text`, holdID, userID).Scan(&screeningID)
 	if err != nil {
-		return err
-	}
-	if result.RowsAffected() == 0 {
-		return ErrSeatUnavailable
+		return "", ErrSeatUnavailable
 	}
 	if _, err = tx.Exec(ctx, `UPDATE screening_seats SET status='available',held_by=NULL,hold_id=NULL,hold_expires_at=NULL WHERE hold_id=$1 AND status='held'`, holdID); err != nil {
-		return err
+		return "", err
 	}
-	return tx.Commit(ctx)
+	return screeningID, tx.Commit(ctx)
 }
 
-func (s *Store) ReleaseExpired(ctx context.Context) error {
+func (s *Store) ReleaseExpired(ctx context.Context) ([]string, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer tx.Rollback(ctx)
+	rows, err := tx.Query(ctx, `SELECT DISTINCT screening_id::text FROM seat_holds WHERE status='active' AND expires_at<=now()`)
+	if err != nil {
+		return nil, err
+	}
+	var screeningIDs []string
+	for rows.Next() {
+		var screeningID string
+		if err := rows.Scan(&screeningID); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		screeningIDs = append(screeningIDs, screeningID)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	if _, err = tx.Exec(ctx, `UPDATE screening_seats SET status='available',held_by=NULL,hold_id=NULL,hold_expires_at=NULL WHERE hold_id IN (SELECT id FROM seat_holds WHERE status='active' AND expires_at<=now()) AND status='held'`); err != nil {
-		return err
+		return nil, err
 	}
 	if _, err = tx.Exec(ctx, `UPDATE seat_holds SET status='expired' WHERE status='active' AND expires_at<=now()`); err != nil {
-		return err
+		return nil, err
 	}
-	return tx.Commit(ctx)
+	return screeningIDs, tx.Commit(ctx)
 }
 
 func (s *Store) HoldDetails(ctx context.Context, holdID, userID string) (CheckoutHold, error) {

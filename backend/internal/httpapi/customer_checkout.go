@@ -7,6 +7,7 @@ import (
 	qrcode "github.com/skip2/go-qrcode"
 	"github.com/tixigo/tixigo-api/internal/booking"
 	"github.com/tixigo/tixigo-api/internal/notification"
+	"github.com/tixigo/tixigo-api/internal/realtime"
 	"github.com/tixigo/tixigo-api/internal/seat"
 	"html"
 	"net/http"
@@ -25,6 +26,7 @@ type checkoutHandler struct {
 	seats    *seat.Store
 	bookings *booking.Store
 	email    notification.EmailSender
+	hub      *realtime.Hub
 }
 
 func (h checkoutHandler) details(w http.ResponseWriter, r *http.Request) {
@@ -41,6 +43,7 @@ func (h checkoutHandler) confirm(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 409, map[string]string{"message": "Hold was not found or has expired."})
 		return
 	}
+	h.hub.Publish(result.ScreeningID)
 	qr, err := ticketQRCode(result.Reference)
 	if err != nil {
 		writeJSON(w, 500, map[string]string{"message": "Booking confirmed, but ticket generation failed."})

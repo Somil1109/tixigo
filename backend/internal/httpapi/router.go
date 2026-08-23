@@ -15,11 +15,12 @@ import (
 	"github.com/tixigo/tixigo-api/internal/media"
 	"github.com/tixigo/tixigo-api/internal/movie"
 	"github.com/tixigo/tixigo-api/internal/notification"
+	"github.com/tixigo/tixigo-api/internal/realtime"
 	"github.com/tixigo/tixigo-api/internal/seat"
 	"github.com/tixigo/tixigo-api/internal/venue"
 )
 
-func NewRouter(cfg config.Config, pool *pgxpool.Pool, tokens *auth.TokenManager, email notification.EmailSender) http.Handler {
+func NewRouter(cfg config.Config, pool *pgxpool.Pool, tokens *auth.TokenManager, email notification.EmailSender, hub *realtime.Hub) http.Handler {
 	r := chi.NewRouter()
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{cfg.WebOrigin},
@@ -37,6 +38,9 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, tokens *auth.TokenManager,
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	})
+	r.Get("/ws/screenings/{screeningID}", func(w http.ResponseWriter, request *http.Request) {
+		hub.Serve(w, request, chi.URLParam(request, "screeningID"), cfg.WebOrigin)
 	})
 	r.Route("/api/v1", func(r chi.Router) {
 		h := newAuthHandler(auth.NewUserStore(pool), auth.NewSessionStore(pool), auth.NewAccountTokenStore(pool), tokens, email, cfg.WebOrigin)
@@ -74,13 +78,13 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, tokens *auth.TokenManager,
 		r.Get("/movies", publicMovies.list)
 		r.Get("/movies/{movieID}", publicMovies.details)
 		r.Get("/screenings/{screeningID}/seats", publicSeatHandler{seat.NewStore(pool)}.seatMap)
-		holds := holdHandler{seat.NewStore(pool)}
+		holds := holdHandler{seat.NewStore(pool), hub}
 		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Post("/screenings/{screeningID}/holds", holds.create)
 		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Delete("/holds/{holdID}", holds.release)
-		checkout := checkoutHandler{seat.NewStore(pool), booking.NewStore(pool), email}
+		checkout := checkoutHandler{seat.NewStore(pool), booking.NewStore(pool), email, hub}
 		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Get("/holds/{holdID}", checkout.details)
 		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Post("/holds/{holdID}/checkout", checkout.confirm)
-		bookings := bookingHandler{booking.NewStore(pool), email}
+		bookings := bookingHandler{booking.NewStore(pool), email, hub}
 		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Get("/bookings", bookings.list)
 		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Get("/bookings/{bookingID}", bookings.details)
 		r.With(requireAuth(tokens), requireRole(auth.RoleCustomer)).Post("/bookings/{bookingID}/cancel", bookings.cancel)

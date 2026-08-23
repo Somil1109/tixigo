@@ -9,11 +9,13 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/tixigo/tixigo-api/internal/booking"
 	"github.com/tixigo/tixigo-api/internal/notification"
+	"github.com/tixigo/tixigo-api/internal/realtime"
 )
 
 type bookingHandler struct {
 	bookings *booking.Store
 	email    notification.EmailSender
+	hub      *realtime.Hub
 }
 
 func (h bookingHandler) list(w http.ResponseWriter, r *http.Request) {
@@ -53,6 +55,7 @@ func (h bookingHandler) cancel(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": "Booking could not be cancelled."})
 		return
 	}
+	h.hub.Publish(result.ScreeningID)
 	body := fmt.Sprintf(`<h1>Your Tixigo booking was cancelled</h1><p><strong>%s</strong></p><p>%s · %s</p><p>Booking reference: <strong>%s</strong></p>`, html.EscapeString(result.MovieTitle), html.EscapeString(result.VenueName), result.StartsAt.Format("02 Jan 2006, 03:04 PM"), result.Reference)
 	emailSent := h.email.Send(r.Context(), result.CustomerEmail, "Tixigo cancellation "+result.Reference, body) == nil
 	writeJSON(w, http.StatusOK, map[string]any{"data": map[string]any{"booking": result, "emailSent": emailSent}})
