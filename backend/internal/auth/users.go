@@ -31,5 +31,10 @@ func (s *UserStore) ByEmail(ctx context.Context, email string) (User, string, er
 	}
 	return u, hash, err
 }
+func (s *UserStore) ByID(ctx context.Context, id string) (User, error) {
+	var u User
+	err := s.pool.QueryRow(ctx, `SELECT id::text,email,full_name,role,email_verified_at FROM users WHERE id=$1`, id).Scan(&u.ID, &u.Email, &u.FullName, &u.Role, &u.EmailVerifiedAt)
+	return u, err
+}
 
 var ErrInvalidCredentials = pgx.ErrNoRows

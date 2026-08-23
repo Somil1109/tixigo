@@ -9,12 +9,13 @@ import (
 )
 
 type authHandler struct {
-	users  *auth.UserStore
-	tokens *auth.TokenManager
+	users    *auth.UserStore
+	sessions *auth.SessionStore
+	tokens   *auth.TokenManager
 }
 
-func newAuthHandler(users *auth.UserStore, tokens *auth.TokenManager) authHandler {
-	return authHandler{users, tokens}
+func newAuthHandler(users *auth.UserStore, sessions *auth.SessionStore, tokens *auth.TokenManager) authHandler {
+	return authHandler{users, sessions, tokens}
 }
 func (h authHandler) register(w http.ResponseWriter, r *http.Request) {
 	var in struct {
@@ -58,5 +59,47 @@ func (h authHandler) login(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 500, map[string]string{"message": "Could not sign in."})
 		return
 	}
+	raw, hash, expiry, err := h.tokens.NewRefreshToken(time.Now())
+	if err != nil || h.sessions.Create(r.Context(), u.ID, hash, expiry) != nil {
+		writeJSON(w, 500, map[string]string{"message": "Could not create session."})
+		return
+	}
+	h.setRefreshCookie(w, raw, expiry)
 	writeJSON(w, 200, map[string]any{"data": map[string]any{"accessToken": token, "user": u}})
+}
+func (h authHandler) refresh(w http.ResponseWriter, r *http.Request) {
+	c, err := r.Cookie("tixigo_refresh")
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"message": "Session expired."})
+		return
+	}
+	id, err := h.sessions.UserID(r.Context(), h.tokens.HashRefreshToken(c.Value))
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"message": "Session expired."})
+		return
+	}
+	_ = h.sessions.Revoke(r.Context(), h.tokens.HashRefreshToken(c.Value))
+	u, err := h.users.ByID(r.Context(), id)
+	if err != nil {
+		writeJSON(w, 401, map[string]string{"message": "Session expired."})
+		return
+	}
+	raw, hash, expiry, _ := h.tokens.NewRefreshToken(time.Now())
+	if h.sessions.Create(r.Context(), id, hash, expiry) != nil {
+		writeJSON(w, 500, map[string]string{"message": "Could not refresh session."})
+		return
+	}
+	h.setRefreshCookie(w, raw, expiry)
+	token, _ := h.tokens.NewAccessToken(u.ID, u.Role, time.Now())
+	writeJSON(w, 200, map[string]any{"data": map[string]any{"accessToken": token, "user": u}})
+}
+func (h authHandler) logout(w http.ResponseWriter, r *http.Request) {
+	if c, err := r.Cookie("tixigo_refresh"); err == nil {
+		_ = h.sessions.Revoke(r.Context(), h.tokens.HashRefreshToken(c.Value))
+	}
+	http.SetCookie(w, &http.Cookie{Name: "tixigo_refresh", Value: "", Path: "/api/v1/auth", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode})
+	w.WriteHeader(http.StatusNoContent)
+}
+func (h authHandler) setRefreshCookie(w http.ResponseWriter, value string, expiry time.Time) {
+	http.SetCookie(w, &http.Cookie{Name: "tixigo_refresh", Value: value, Path: "/api/v1/auth", Expires: expiry, HttpOnly: true, Secure: false, SameSite: http.SameSiteLaxMode})
 }
