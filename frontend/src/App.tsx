@@ -1,5 +1,6 @@
-import { Film, Menu, Search, Ticket, UserRound } from "lucide-react";
+import { Film, Menu, Search, Ticket, UserRound, X } from "lucide-react";
 import { Link, Route, Routes } from "react-router-dom";
+import { useState } from "react";
 import { HomePage } from "./pages/HomePage";
 import { useAuth } from "./features/auth/AuthContext";
 import { ForgotPasswordPage, LoginPage, RegisterPage, ResetPasswordPage, VerifyEmailPage } from "./features/auth/AuthPages";
@@ -15,10 +16,13 @@ import { TicketValidationPage } from "./pages/TicketValidationPage";
 
 function Header() {
   const {user,logout}=useAuth();
+  const [open,setOpen]=useState(false);
+  const close=()=>setOpen(false);
   return <header className="site-header">
     <Link className="brand" to="/"><Ticket size={23} fill="currentColor" /> Tixigo</Link>
     <nav><Link to="/movies">Movies</Link><Link to="/about">How it works</Link></nav>
-    <div className="header-actions"><button className="icon-button" aria-label="Search"><Search size={19} /></button>{user?.role==="customer"&&<><Link to="/bookings">My bookings</Link><Link to="/waitlist">Waitlist</Link></>}{user?.role==="admin"&&<Link to="/admin">Admin</Link>}{(user?.role==="organiser"||user?.role==="admin")&&<><Link to="/organiser">Organiser</Link><Link to="/validate-ticket">Admit</Link></>}{user?<button className="login" onClick={()=>void logout()}><UserRound size={17}/>{user.fullName} · Sign out</button>:<Link className="login" to="/login"><UserRound size={17} /> Sign in</Link>}<button className="menu" aria-label="Menu"><Menu size={20} /></button></div>
+    <div className="header-actions"><button className="icon-button" aria-label="Search"><Search size={19} /></button>{user?.role==="customer"&&<><Link className="desktop-role-link" to="/bookings">My bookings</Link><Link className="desktop-role-link" to="/waitlist">Waitlist</Link></>}{user?.role==="admin"&&<Link className="desktop-role-link" to="/admin">Admin</Link>}{(user?.role==="organiser"||user?.role==="admin")&&<><Link className="desktop-role-link" to="/organiser">Organiser</Link><Link className="desktop-role-link" to="/validate-ticket">Admit</Link></>}{user?<button className="login" onClick={()=>void logout()}><UserRound size={17}/>{user.fullName} · Sign out</button>:<Link className="login" to="/login"><UserRound size={17} /> Sign in</Link>}<button className="menu" aria-label={open?"Close menu":"Open menu"} aria-expanded={open} onClick={()=>setOpen(value=>!value)}>{open?<X size={20}/>:<Menu size={20}/>}</button></div>
+    {open&&<nav className="mobile-nav" aria-label="Mobile navigation"><Link onClick={close} to="/movies">Movies</Link>{user?.role==="customer"&&<><Link onClick={close} to="/bookings">My bookings</Link><Link onClick={close} to="/waitlist">Waitlist</Link></>}{user?.role==="admin"&&<Link onClick={close} to="/admin">Admin dashboard</Link>}{(user?.role==="organiser"||user?.role==="admin")&&<><Link onClick={close} to="/organiser">Organiser workspace</Link><Link onClick={close} to="/validate-ticket">Admit ticket</Link></>}{user?<button onClick={()=>{close();void logout()}}>Sign out</button>:<Link onClick={close} to="/login">Sign in</Link>}</nav>}
   </header>;
 }
 
