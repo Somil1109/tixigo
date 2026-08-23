@@ -11,9 +11,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tixigo/tixigo-api/internal/auth"
 	"github.com/tixigo/tixigo-api/internal/config"
+	"github.com/tixigo/tixigo-api/internal/notification"
 )
 
-func NewRouter(cfg config.Config, pool *pgxpool.Pool, tokens *auth.TokenManager) http.Handler {
+func NewRouter(cfg config.Config, pool *pgxpool.Pool, tokens *auth.TokenManager, email notification.EmailSender) http.Handler {
 	r := chi.NewRouter()
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{cfg.WebOrigin},
@@ -33,7 +34,7 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, tokens *auth.TokenManager)
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 	r.Route("/api/v1", func(r chi.Router) {
-		h := newAuthHandler(auth.NewUserStore(pool), auth.NewSessionStore(pool), auth.NewAccountTokenStore(pool), tokens)
+		h := newAuthHandler(auth.NewUserStore(pool), auth.NewSessionStore(pool), auth.NewAccountTokenStore(pool), tokens, email, cfg.WebOrigin)
 		r.Post("/auth/register", h.register)
 		r.Post("/auth/login", h.login)
 		r.Post("/auth/refresh", h.refresh)

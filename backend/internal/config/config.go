@@ -16,6 +16,9 @@ type Config struct {
 	RefreshTokenSecret string
 	AccessTokenTTL     time.Duration
 	RefreshTokenTTL    time.Duration
+	EmailFrom          string
+	ResendAPIKey       string
+	MailpitAddress     string
 }
 
 func Load() Config {
@@ -29,6 +32,9 @@ func Load() Config {
 		RefreshTokenSecret: value("JWT_REFRESH_SECRET", ""),
 		AccessTokenTTL:     duration("ACCESS_TOKEN_TTL", 15*time.Minute),
 		RefreshTokenTTL:    duration("REFRESH_TOKEN_TTL", 30*24*time.Hour),
+		EmailFrom:          value("EMAIL_FROM", "Tixigo <noreply@localhost>"),
+		ResendAPIKey:       value("RESEND_API_KEY", ""),
+		MailpitAddress:     value("MAILPIT_HOST", "localhost") + ":" + value("MAILPIT_PORT", "1025"),
 	}
 }
 

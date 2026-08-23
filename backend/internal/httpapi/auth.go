@@ -2,10 +2,14 @@ package httpapi
 
 import (
 	"encoding/json"
-	"github.com/tixigo/tixigo-api/internal/auth"
+	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
+
+	"github.com/tixigo/tixigo-api/internal/auth"
+	"github.com/tixigo/tixigo-api/internal/notification"
 )
 
 type authHandler struct {
@@ -13,10 +17,12 @@ type authHandler struct {
 	sessions      *auth.SessionStore
 	accountTokens *auth.AccountTokenStore
 	tokens        *auth.TokenManager
+	email         notification.EmailSender
+	webOrigin     string
 }
 
-func newAuthHandler(users *auth.UserStore, sessions *auth.SessionStore, accountTokens *auth.AccountTokenStore, tokens *auth.TokenManager) authHandler {
-	return authHandler{users: users, sessions: sessions, accountTokens: accountTokens, tokens: tokens}
+func newAuthHandler(users *auth.UserStore, sessions *auth.SessionStore, accountTokens *auth.AccountTokenStore, tokens *auth.TokenManager, email notification.EmailSender, webOrigin string) authHandler {
+	return authHandler{users: users, sessions: sessions, accountTokens: accountTokens, tokens: tokens, email: email, webOrigin: webOrigin}
 }
 func (h authHandler) register(w http.ResponseWriter, r *http.Request) {
 	var in struct {
@@ -38,9 +44,14 @@ func (h authHandler) register(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 409, map[string]string{"message": "An account with that email already exists."})
 		return
 	}
-	_, tokenHash, err := auth.NewAccountToken()
+	rawToken, tokenHash, err := auth.NewAccountToken()
 	if err != nil || h.accountTokens.Create(r.Context(), u.ID, "verify_email", tokenHash, time.Now().Add(24*time.Hour)) != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"message": "Could not create verification request."})
+		return
+	}
+	verificationURL := h.webOrigin + "/verify-email?token=" + url.QueryEscape(rawToken)
+	if err := h.email.Send(r.Context(), u.Email, "Verify your Tixigo email", fmt.Sprintf(`<p>Welcome to Tixigo.</p><p><a href="%s">Verify your email</a></p>`, verificationURL)); err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"message": "Account created, but verification email could not be sent."})
 		return
 	}
 	writeJSON(w, 201, map[string]any{"data": map[string]any{"id": u.ID, "email": u.Email, "fullName": u.FullName, "role": u.Role}})
@@ -67,9 +78,12 @@ func (h authHandler) forgotPassword(w http.ResponseWriter, r *http.Request) {
 	}
 	if json.NewDecoder(r.Body).Decode(&in) == nil {
 		if u, _, err := h.users.ByEmail(r.Context(), in.Email); err == nil {
-			_, hash, tokenErr := auth.NewAccountToken()
+			rawToken, hash, tokenErr := auth.NewAccountToken()
 			if tokenErr == nil {
-				_ = h.accountTokens.Create(r.Context(), u.ID, "reset_password", hash, time.Now().Add(time.Hour))
+				if h.accountTokens.Create(r.Context(), u.ID, "reset_password", hash, time.Now().Add(time.Hour)) == nil {
+					resetURL := h.webOrigin + "/reset-password?token=" + url.QueryEscape(rawToken)
+					_ = h.email.Send(r.Context(), u.Email, "Reset your Tixigo password", fmt.Sprintf(`<p><a href="%s">Reset your password</a>. This link expires in one hour.</p>`, resetURL))
+				}
 			}
 		}
 	}

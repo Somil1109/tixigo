@@ -14,6 +14,7 @@ import (
 	"github.com/tixigo/tixigo-api/internal/config"
 	"github.com/tixigo/tixigo-api/internal/database"
 	"github.com/tixigo/tixigo-api/internal/httpapi"
+	"github.com/tixigo/tixigo-api/internal/notification"
 )
 
 func main() {
@@ -33,7 +34,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           httpapi.NewRouter(cfg, pool, tokens),
+		Handler:           httpapi.NewRouter(cfg, pool, tokens, notification.NewEmailSender(cfg)),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
