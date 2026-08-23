@@ -1,15 +1,18 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tixigo/tixigo-api/internal/config"
 )
 
-func NewRouter(cfg config.Config) http.Handler {
+func NewRouter(cfg config.Config, pool *pgxpool.Pool) http.Handler {
 	r := chi.NewRouter()
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{cfg.WebOrigin},
@@ -19,7 +22,13 @@ func NewRouter(cfg config.Config) http.Handler {
 		MaxAge:           300,
 	}))
 
-	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+	r.Get("/healthz", func(w http.ResponseWriter, request *http.Request) {
+		pingCtx, cancel := context.WithTimeout(request.Context(), 2*time.Second)
+		defer cancel()
+		if err := pool.Ping(pingCtx); err != nil {
+			writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "unavailable"})
+			return
+		}
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 	r.Route("/api/v1", func(r chi.Router) {
