@@ -35,3 +35,19 @@ func accessClaims(r *http.Request) auth.AccessClaims {
 	claims, _ := r.Context().Value(accessClaimsContextKey{}).(auth.AccessClaims)
 	return claims
 }
+
+func requireRole(roles ...auth.Role) func(http.Handler) http.Handler {
+	allowed := make(map[auth.Role]struct{}, len(roles))
+	for _, role := range roles {
+		allowed[role] = struct{}{}
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if _, ok := allowed[accessClaims(r).Role]; !ok {
+				writeJSON(w, http.StatusForbidden, map[string]string{"message": "You do not have permission to perform this action."})
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}

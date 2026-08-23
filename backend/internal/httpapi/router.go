@@ -43,6 +43,11 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool, tokens *auth.TokenManager,
 		r.Post("/auth/forgot-password", h.forgotPassword)
 		r.Post("/auth/reset-password", h.resetPassword)
 		r.With(requireAuth(tokens)).Get("/auth/me", h.me)
+		r.Route("/admin", func(r chi.Router) {
+			r.Use(requireAuth(tokens))
+			r.Use(requireRole(auth.RoleAdmin))
+			r.Patch("/users/{userID}/role", adminUserHandler{auth.NewUserStore(pool)}.updateRole)
+		})
 		r.Get("/movies", func(w http.ResponseWriter, _ *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]any{"data": []any{}})
 		})

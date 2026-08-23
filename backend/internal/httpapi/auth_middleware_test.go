@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -31,6 +32,16 @@ func TestRequireAuth(t *testing.T) {
 	res := httptest.NewRecorder()
 	handler.ServeHTTP(res, req)
 	if res.Code != http.StatusNoContent {
+		t.Fatalf("status = %d", res.Code)
+	}
+}
+
+func TestRequireRoleRejectsWrongRole(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req = req.WithContext(context.WithValue(req.Context(), accessClaimsContextKey{}, auth.AccessClaims{Role: auth.RoleCustomer}))
+	res := httptest.NewRecorder()
+	requireRole(auth.RoleAdmin)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { t.Fatal("handler should not run") })).ServeHTTP(res, req)
+	if res.Code != http.StatusForbidden {
 		t.Fatalf("status = %d", res.Code)
 	}
 }

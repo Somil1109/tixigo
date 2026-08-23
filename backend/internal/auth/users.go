@@ -38,5 +38,11 @@ func (s *UserStore) ByID(ctx context.Context, id string) (User, error) {
 	return u, err
 }
 
+func (s *UserStore) UpdateRole(ctx context.Context, id string, role Role) (User, error) {
+	var u User
+	err := s.pool.QueryRow(ctx, `UPDATE users SET role=$2,updated_at=now() WHERE id=$1 AND role<>'admin' RETURNING id::text,email,full_name,role,email_verified_at`, id, role).Scan(&u.ID, &u.Email, &u.FullName, &u.Role, &u.EmailVerifiedAt)
+	return u, err
+}
+
 var ErrInvalidCredentials = pgx.ErrNoRows
 var ErrInvalidAccountToken = errors.New("invalid or expired account token")
