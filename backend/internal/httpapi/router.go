@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/cors"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/tixigo/tixigo-api/internal/auth"
 	"github.com/tixigo/tixigo-api/internal/config"
 )
 
@@ -32,6 +33,7 @@ func NewRouter(cfg config.Config, pool *pgxpool.Pool) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 	r.Route("/api/v1", func(r chi.Router) {
+		r.Post("/auth/register", newAuthHandler(auth.NewUserStore(pool)).register)
 		r.Get("/movies", func(w http.ResponseWriter, _ *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]any{"data": []any{}})
 		})
